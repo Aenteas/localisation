@@ -74,6 +74,7 @@ class Map:
         self.walls = walls
         self.map_size = map_size
         self.image = np.ones(self.map_size, np.uint8) * 255
+        self.image_trajectory = np.ones(self.map_size, np.uint8) * 255
         self.thickness = 1
         # the absolute value of velocity should be smaller
         self.vel_limit = 50
@@ -85,7 +86,8 @@ class Map:
         self.counter = 0
 
     def draw(self):
-        self.image = np.ones(self.map_size, np.uint8) * 255
+        self.draw_trajectory()
+        self.image = np.copy(self.image_trajectory)
         self.draw_walls()
         self.draw_robot()
         self.draw_sensors()
@@ -112,6 +114,14 @@ class Map:
     def draw_walls(self):
         for wall in self.walls:
             cv2.line(self.image, (wall[0], wall[1]), (wall[2], wall[3]), (255, 0, 0), self.thickness)
+
+    def draw_trajectory(self):
+        p1 = int(self.robot.prev_pos[0])
+        p2 = int(self.robot.prev_pos[1])
+        p3 = int(self.robot.pos[0])
+        p4 = int(self.robot.pos[1])
+        cv2.line(self.image_trajectory, (p1, p2), (p3, p4), (50, 50, 50), self.thickness)
+        self.robot.prev_pos = self.robot.pos
 
     def draw_sensors(self):
         for i, intersection in enumerate(self.robot.intersections):
@@ -195,7 +205,7 @@ class Map:
                     if self.robot.omega < self.omega_limit:
                         self.robot.omega += 1
                 elif input == ord('l'):
-                    if self.robot.omega >=1:
+                    if self.robot.omega >= -self.omega_limit:
                         self.robot.omega -= 1
                 elif input == ord('x'):
                     self.robot.vel = 0
