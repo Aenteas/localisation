@@ -1,1 +1,212 @@
+import numpy as np
+import cv2
+import math
+import random
+import time
 
+class Robot:
+    def __init__(self, pos, radius=25, map_size=(500, 600, 3)):
+        self.pos = pos
+        self.prev_pos = pos
+        # the radius of the circle of the robot
+        self.radius = radius
+        # counter clockwise angle counted from the rightmost point (in radian)
+        # if both right and left motor speed are negative then it points to the opposite direction
+        # sensors should be relative to the original value
+        # however collision should take into consideration negaive speed
+        self.heading = random.random() * 2 * math.pi
+
+        self.vel = 0
+        self.omega = 0
+
+        self.map_size = map_size
+
+        self.color = (255, 0, 0)
+
+        self.sensor_range = 75.0
+
+    def move(self, deltaT):
+        self.pos = (self.pos[0] + math.cos(self.heading) * self.vel * deltaT,
+                    self.pos[1] - math.sin(self.heading) * self.vel * deltaT)
+
+        self.heading += self.omega * deltaT
+
+    def update_sensor(self, walls):
+        angle = -self.heading
+        #handle singularities
+        if abs(math.cos(angle)) < 0.000001 or abs(math.sin(angle)) < 0.000001:
+            angle += 0.00001
+        self.sensor_input = np.empty((12,1), dtype=np.float)
+        #this is only for drawing
+        self.intersections = []
+        for i in range(12):
+            min_distance = float("infinity")
+            closest_intersection = (self.pos[0], self.pos[1])
+            for wall in walls:
+                wall_direction = (np.float(wall[2] - wall[0]), np.float(wall[3] - wall[1]))
+                wall_start = (np.float(wall[0]), np.float(wall[1]))
+                denom1 = (wall_direction[1] - math.tan(angle) * wall_direction[0])
+                #paralell to the wall
+                if denom1 == 0:
+                    continue
+                segment_param = (math.tan(angle) * (wall_start[0] - self.pos[0]) - wall_start[1] + self.pos[1]) / denom1
+                if segment_param >= 0 and segment_param <= 1:
+                    ray_param = (wall_start[0] - self.pos[0] + segment_param * wall_direction[0]) / math.cos(angle)
+                    if ray_param >= 0:
+                        intersection = (wall_start[0] + segment_param * wall_direction[0],
+                                       wall_start[1] + segment_param * wall_direction[1])
+                        distance = np.sqrt((intersection[0] - self.pos[0]) * (intersection[0] - self.pos[0]) + (
+                                intersection[1] - self.pos[1]) * (intersection[1] - self.pos[1]))
+                        if distance < min_distance:
+                            min_distance = distance
+                            closest_intersection = intersection
+            if min_distance <= self.sensor_range:
+                self.intersections.append(closest_intersection)
+                self.sensor_input[i] = min_distance
+            else:
+                closest_intersection = (self.pos[0] + self.sensor_range * math.cos(angle), self.pos[1] + self.sensor_range * math.sin(angle))
+                self.intersections.append(closest_intersection)
+                self.sensor_input[i] = self.sensor_range
+            angle += math.radians(30)
+
+class Map:
+    def __init__(self, walls, map_size=(500, 600, 3)):
+        self.walls = walls
+        self.map_size = map_size
+        self.image = np.ones(self.map_size, np.uint8) * 255
+        self.thickness = 1
+        # the absolute value of velocity should be smaller
+        self.vel_limit = 50
+        self.omega_limit = 6
+
+        # the time step in seconds
+        self.min_timediff_sec = 1.0 / self.vel_limit
+
+        self.counter = 0
+
+    def draw(self):
+        self.image = np.ones(self.map_size, np.uint8) * 255
+        self.draw_walls()
+        self.draw_robot()
+        self.draw_sensors()
+
+    # you can also use this to determine the sensor coordinates on the circle line
+    def robot_circle_points(self, heading):
+        if self.robot.vel > 0:
+            heading_sign_end_point_x = np.uint(
+                math.cos(heading) * self.robot.radius + self.robot.pos[0])
+            heading_sign_end_point_y = np.uint(
+                -math.sin(heading) * self.robot.radius + self.robot.pos[1])
+            return (heading_sign_end_point_x, heading_sign_end_point_y)
+        else:
+            return (np.uint(self.robot.pos[0]), np.uint(self.robot.pos[1]))
+
+    def draw_robot(self):
+        circ_axes = (self.robot.radius, self.robot.radius)
+        cv2.ellipse(self.image, (np.uint(self.robot.pos[0]), np.uint(self.robot.pos[1])), circ_axes, 0, 0, 360,
+                    self.robot.color, self.thickness, cv2.LINE_AA)
+        cv2.line(self.image, (np.uint(self.robot.pos[0]), np.uint(self.robot.pos[1])),
+                 self.robot_circle_points(self.robot.heading), (255, 0, 0),
+                 self.thickness+1)
+
+    def draw_walls(self):
+        for wall in self.walls:
+            cv2.line(self.image, (wall[0], wall[1]), (wall[2], wall[3]), (255, 0, 0), self.thickness)
+
+    def draw_sensors(self):
+        for i, intersection in enumerate(self.robot.intersections):
+            ratio = self.robot.sensor_input[i] / self.robot.sensor_range
+            color = (0,  int(ratio * 255), int((1 - ratio) * 255))
+            cv2.line(self.image, (np.uint(self.robot.pos[0]), np.uint(self.robot.pos[1])),
+                     (np.uint(intersection[0]), np.uint(intersection[1])), color, self.thickness)
+
+    def collision(self):
+        heading = self.robot.heading
+        for index, wall in enumerate(self.walls):
+            if self.intersect(wall):
+                self.touch = True
+                temp_walls = self.walls
+                self.walls = []
+                self.walls.append(temp_walls[index])
+                self.walls.extend(temp_walls[:index])
+                self.walls.extend(temp_walls[(index + 1):])
+                if wall[2] - wall[0] == 0:
+                    wall_angle = math.pi / 2
+                else:
+                    wall_angle = math.atan(np.float(wall[3] - wall[1]) / np.float(wall[2] - wall[0]))
+                collision_angle = wall_angle - heading
+                x_movement = self.robot.pos[0] - self.robot.prev_pos[0]
+                y_movement = self.robot.pos[1] - self.robot.prev_pos[1]
+                movement = np.sqrt(x_movement * x_movement + y_movement * y_movement)
+                paralell_movement = math.cos(collision_angle) * movement
+                self.robot.pos = (self.robot.prev_pos[0] + math.cos(wall_angle) * paralell_movement,
+                                  self.robot.prev_pos[1] - math.sin(wall_angle) * paralell_movement)
+
+                if not self.intersect(wall):
+                    heading = wall_angle
+                else:
+                    # means we have a corner or numerical error
+                    # when we touch a nib we have to work with the tangent on the circle in the intersection
+                    # This means that the paralell component will be zero!
+                    self.robot.pos = (self.robot.prev_pos[0], self.robot.prev_pos[1])
+
+        self.robot.prev_pos = self.robot.pos
+
+    def intersect(self, wall):
+        d_x = wall[2] - wall[0]
+        d_y = wall[3] - wall[1]
+        e_x = wall[0]
+        e_y = wall[1]
+        h = self.robot.pos[0]
+        k = self.robot.pos[1]
+        r = self.robot.radius
+        a = d_x * d_x + d_y * d_y
+        b = 2 * (e_x * d_x + e_y * d_y - d_x * h - d_y * k)
+        c = e_x * e_x + e_y * e_y - 2 * e_x * h - 2 * e_y * k + h * h + k * k - r * r
+        discriminant = b * b - 4 * a * c
+        if discriminant < 0:
+            return False
+        else:
+            t_first = (-b + np.sqrt(discriminant)) / (2 * a)
+            t_second = (-b - np.sqrt(discriminant)) / (2 * a)
+            if (t_first <= 1 and t_first >= 0) or (t_second <= 1 and t_second >= 0):
+                return True
+            else:
+                return False
+
+    def set_robot(self, robot):
+        self.robot = robot
+
+    def simulate(self):
+        if hasattr(self, 'robot'):
+            start = time.clock()
+            while (1):
+                input = cv2.waitKey(1)
+                if input == ord('p'):  # press p to stop
+                    cv2.destroyAllWindows()
+                    break
+                if input == ord('w'):
+                    if self.robot.vel < self.vel_limit:
+                        self.robot.vel += 1
+                elif input == ord('s'):
+                    if self.robot.vel >= 1:
+                        self.robot.vel -= 1
+                elif input == ord('o'):
+                    if self.robot.omega < self.omega_limit:
+                        self.robot.omega += 1
+                elif input == ord('l'):
+                    if self.robot.omega >=1:
+                        self.robot.omega -= 1
+                elif input == ord('x'):
+                    self.robot.vel = 0
+                    self.robot.omega = 0
+
+                end = time.clock()
+                timediff_ns = end - start
+                if timediff_ns > self.min_timediff_sec:
+                    self.robot.update_sensor(self.walls)
+                    self.robot.move(self.min_timediff_sec)
+                    self.collision()
+                    self.draw()
+                    cv2.imshow('simulator', self.image)
+                    start = time.clock()
