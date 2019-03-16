@@ -2,32 +2,20 @@ from map import Map
 from map import Robot
 import numpy as np
 from map import Map
+import random
 
 # creating walls
 # every wall corresponds to a tuple, the first 2 elements are the starting, the last 2 elements are the ending points
 
+num_features = 30
+map_size = (500, 600)
+#generate features
+features = []
+for i in range(num_features):
+        pos_x = np.random.rand() * map_size[1]
+        pos_y = np.random.rand() * map_size[0]
+        features.append((pos_x, pos_y))
 
-map1 = [(100, 100, 100, 400), (100, 100, 500, 100), (500, 100, 500, 400), (100, 400, 500, 400),
-        (200, 200, 300, 200), (100, 300, 300, 300), (300, 300, 300, 200), (400, 100, 400, 300)]
-
-map2 = [(100, 100, 100, 400), (100, 100, 500, 100), (500, 100, 500, 400), (100, 400, 500, 400)]
-
-map3 = [(100, 100, 100, 400), (100, 100, 500, 100), (500, 100, 500, 400), (100, 400, 500, 400),
-        (300, 100, 300, 200), (200, 400, 200, 200), (400, 400, 400, 200)]
-
-training_maps = [map1, map2, map3]
-
-map4 = [(100, 100, 100, 400), (100, 100, 500, 100), (500, 100, 500, 400), (100, 400, 500, 400),
-        (300, 100, 300, 300)]
-
-map5 = [(100, 100, 100, 400), (100, 100, 500, 100), (500, 100, 500, 400), (100, 400, 500, 400),
-        (300, 100, 300, 200), (300, 400, 300, 300)]
-
-map6 = [(100, 100, 100, 400), (100, 100, 500, 100), (500, 100, 500, 400), (100, 400, 500, 400),
-        (200, 200, 300, 200), (200, 200, 200, 300), (200, 300, 400, 300), (400, 200, 400, 300)]
-
-test_maps = [map4, map5, map6]
-
-map = Map(map1)
+map = Map(features)
 map.set_robot(Robot(pos=(150, 350)))
 map.simulate()
