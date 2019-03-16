@@ -1,0 +1,34 @@
+import numpy as np
+import math
+
+class localizaion:
+    def __init__(self, min_timediff_sec):
+        self.min_timediff_sec = min_timediff_sec
+        self.model_var = 0.1
+        self.R = np.eye(3) * self.model_var
+        self.sensor_var = 0.1
+        self.Q = np.eye(3) * self.sensor_var
+
+    def predict(self, prev_pos, prev_pos_cov, u, measurement):
+        delta_t = self.min_timediff_sec
+        heading = prev_pos[2]
+        z = measurement
+        A = np.eye(3, dtype=np.float)
+        B = np.array([[delta_t * math.cos(heading, 0)],
+                      [delta_t * math.sin(heading, 0)],
+                      [0, delta_t]], dtype=np.float)
+        C = np.eye(3, dtype=np.float)
+        #comptations could be simplified but if we want to change the matrices A, B, C the general
+        #method is always working
+        #prediction
+        pos_pred = np.dot(A, prev_pos) + np.dot(B, u)
+        pos_cov_pred = np.dot(np.dot(A, prev_pos_cov), np.transpose(A)) + self.R
+
+        #correction
+        a = np.invert(np.dot(np.dot(C, pos_cov_pred), np.transpose(C)) + self.Q)
+        K = np.dot(np.dot(pos_cov_pred, np.transpose(C)), a)
+
+        pos_corr = pos_pred + np.dot(K, (z - np.dot(C, pos_pred)))
+        pos_cov_corr = np.dot((np.eye(3, dtype=np.float) - np.dot(K, C)), pos_cov_pred)
+
+        return (pos_corr, pos_cov_corr)
