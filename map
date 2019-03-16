@@ -31,47 +31,9 @@ class Robot:
 
         self.heading += self.omega * deltaT
 
-    def update_sensor(self, walls):
-        angle = -self.heading
-        #handle singularities
-        if abs(math.cos(angle)) < 0.000001 or abs(math.sin(angle)) < 0.000001:
-            angle += 0.00001
-        self.sensor_input = np.empty((12,1), dtype=np.float)
-        #this is only for drawing
-        self.intersections = []
-        for i in range(12):
-            min_distance = float("infinity")
-            closest_intersection = (self.pos[0], self.pos[1])
-            for wall in walls:
-                wall_direction = (np.float(wall[2] - wall[0]), np.float(wall[3] - wall[1]))
-                wall_start = (np.float(wall[0]), np.float(wall[1]))
-                denom1 = (wall_direction[1] - math.tan(angle) * wall_direction[0])
-                #paralell to the wall
-                if denom1 == 0:
-                    continue
-                segment_param = (math.tan(angle) * (wall_start[0] - self.pos[0]) - wall_start[1] + self.pos[1]) / denom1
-                if segment_param >= 0 and segment_param <= 1:
-                    ray_param = (wall_start[0] - self.pos[0] + segment_param * wall_direction[0]) / math.cos(angle)
-                    if ray_param >= 0:
-                        intersection = (wall_start[0] + segment_param * wall_direction[0],
-                                       wall_start[1] + segment_param * wall_direction[1])
-                        distance = np.sqrt((intersection[0] - self.pos[0]) * (intersection[0] - self.pos[0]) + (
-                                intersection[1] - self.pos[1]) * (intersection[1] - self.pos[1]))
-                        if distance < min_distance:
-                            min_distance = distance
-                            closest_intersection = intersection
-            if min_distance <= self.sensor_range:
-                self.intersections.append(closest_intersection)
-                self.sensor_input[i] = min_distance
-            else:
-                closest_intersection = (self.pos[0] + self.sensor_range * math.cos(angle), self.pos[1] + self.sensor_range * math.sin(angle))
-                self.intersections.append(closest_intersection)
-                self.sensor_input[i] = self.sensor_range
-            angle += math.radians(30)
-
 class Map:
-    def __init__(self, walls, map_size=(500, 600, 3)):
-        self.walls = walls
+    def __init__(self, features, map_size=(500, 600, 3)):
+        self.features = features
         self.map_size = map_size
         self.image = np.ones(self.map_size, np.uint8) * 255
         self.image_trajectory = np.ones(self.map_size, np.uint8) * 255
@@ -85,10 +47,24 @@ class Map:
 
         self.counter = 0
 
+    def intersection(self, feature):
+        x_diff = feature[0] - self.robot.pos[0]
+        y_diff = feature[1] - self.robot.pos[1]
+        if x_diff == 0 and y_diff < 0:
+            intersection = (np.uint(self.robot.pos[0]), np.uint(self.robot.pos[1] - self.robot.radius))
+        elif x_diff == 0 and y_diff > 0:
+            intersection = (np.uint(self.robot.pos[0]), np.uint(self.robot.pos[1] + self.robot.radius))
+        else:
+            angle = math.atan(y_diff / x_diff)
+            sign_x = math.copysign(1, x_diff)
+            sign_y = math.copysign(1, y_diff)
+            intersection = (np.uint(self.robot.pos[0] + sign_x * self.robot.radius * abs(math.cos(angle))), np.uint(self.robot.pos[1] + sign_y * self.robot.radius * abs(math.sin(angle))))
+        return intersection
+
     def draw(self):
         self.draw_trajectory()
         self.image = np.copy(self.image_trajectory)
-        self.draw_walls()
+        self.draw_features()
         self.draw_robot()
         self.draw_sensors()
 
@@ -111,9 +87,9 @@ class Map:
                  self.robot_circle_points(self.robot.heading), (255, 0, 0),
                  self.thickness+1)
 
-    def draw_walls(self):
-        for wall in self.walls:
-            cv2.line(self.image, (wall[0], wall[1]), (wall[2], wall[3]), (255, 0, 0), self.thickness)
+    def draw_features(self):
+        for feature in self.features:
+            cv2.circle(self.image, (np.uint(feature[0]), np.uint(feature[1])), 2, (255, 0, 0), -1)
 
     def draw_trajectory(self):
         p1 = int(self.robot.prev_pos[0])
@@ -124,65 +100,12 @@ class Map:
         self.robot.prev_pos = self.robot.pos
 
     def draw_sensors(self):
-        for i, intersection in enumerate(self.robot.intersections):
-            ratio = self.robot.sensor_input[i] / self.robot.sensor_range
-            color = (0,  int(ratio * 255), int((1 - ratio) * 255))
-            cv2.line(self.image, (np.uint(self.robot.pos[0]), np.uint(self.robot.pos[1])),
-                     (np.uint(intersection[0]), np.uint(intersection[1])), color, self.thickness)
-
-    def collision(self):
-        heading = self.robot.heading
-        for index, wall in enumerate(self.walls):
-            if self.intersect(wall):
-                self.touch = True
-                temp_walls = self.walls
-                self.walls = []
-                self.walls.append(temp_walls[index])
-                self.walls.extend(temp_walls[:index])
-                self.walls.extend(temp_walls[(index + 1):])
-                if wall[2] - wall[0] == 0:
-                    wall_angle = math.pi / 2
-                else:
-                    wall_angle = math.atan(np.float(wall[3] - wall[1]) / np.float(wall[2] - wall[0]))
-                collision_angle = wall_angle - heading
-                x_movement = self.robot.pos[0] - self.robot.prev_pos[0]
-                y_movement = self.robot.pos[1] - self.robot.prev_pos[1]
-                movement = np.sqrt(x_movement * x_movement + y_movement * y_movement)
-                paralell_movement = math.cos(collision_angle) * movement
-                self.robot.pos = (self.robot.prev_pos[0] + math.cos(wall_angle) * paralell_movement,
-                                  self.robot.prev_pos[1] - math.sin(wall_angle) * paralell_movement)
-
-                if not self.intersect(wall):
-                    heading = wall_angle
-                else:
-                    # means we have a corner or numerical error
-                    # when we touch a nib we have to work with the tangent on the circle in the intersection
-                    # This means that the paralell component will be zero!
-                    self.robot.pos = (self.robot.prev_pos[0], self.robot.prev_pos[1])
-
-        self.robot.prev_pos = self.robot.pos
-
-    def intersect(self, wall):
-        d_x = wall[2] - wall[0]
-        d_y = wall[3] - wall[1]
-        e_x = wall[0]
-        e_y = wall[1]
-        h = self.robot.pos[0]
-        k = self.robot.pos[1]
-        r = self.robot.radius
-        a = d_x * d_x + d_y * d_y
-        b = 2 * (e_x * d_x + e_y * d_y - d_x * h - d_y * k)
-        c = e_x * e_x + e_y * e_y - 2 * e_x * h - 2 * e_y * k + h * h + k * k - r * r
-        discriminant = b * b - 4 * a * c
-        if discriminant < 0:
-            return False
-        else:
-            t_first = (-b + np.sqrt(discriminant)) / (2 * a)
-            t_second = (-b - np.sqrt(discriminant)) / (2 * a)
-            if (t_first <= 1 and t_first >= 0) or (t_second <= 1 and t_second >= 0):
-                return True
-            else:
-                return False
+        for feature in self.features:
+            distance = math.sqrt((self.robot.pos[0]-feature[0])**2 + (self.robot.pos[1]-feature[1])**2)
+            if distance < self.robot.sensor_range and distance > self.robot.radius:
+                cv2.line(self.image, self.intersection(feature),
+                         (np.uint(feature[0]), np.uint(feature[1])), (0, 255, 0),
+                         self.thickness)
 
     def set_robot(self, robot):
         self.robot = robot
@@ -214,9 +137,7 @@ class Map:
                 end = time.clock()
                 timediff_ns = end - start
                 if timediff_ns > self.min_timediff_sec:
-                    self.robot.update_sensor(self.walls)
                     self.robot.move(self.min_timediff_sec)
-                    self.collision()
                     self.draw()
                     cv2.imshow('simulator', self.image)
                     start = time.clock()
