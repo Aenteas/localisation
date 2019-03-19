@@ -3,12 +3,12 @@ from map import Robot
 import numpy as np
 from map import Map
 import random
-
-# creating walls
-# every wall corresponds to a tuple, the first 2 elements are the starting, the last 2 elements are the ending points
+from localization import Localization
+import math
 
 num_features = 30
 map_size = (500, 600)
+min_timediff_sec = 1.0/50.0
 #generate features
 features = []
 for i in range(num_features):
@@ -16,6 +16,5 @@ for i in range(num_features):
         pos_y = np.random.rand() * map_size[0]
         features.append((pos_x, pos_y))
 
-map = Map(features)
-map.set_robot(Robot(pos=(150, 350)))
+map = Map(Robot(pos=(300, 250)), features, Localization(min_timediff_sec))
 map.simulate()
