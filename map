@@ -3,6 +3,7 @@ import cv2
 import math
 import random
 import time
+from localization import Localization
 
 class Robot:
     def __init__(self, pos, radius=25, map_size=(500, 600, 3)):
@@ -24,15 +25,24 @@ class Robot:
         self.color = (255, 0, 0)
 
         self.sensor_range = 75.0
+        self.noise = (0.5, 0.5, 0.05)
 
     def move(self, deltaT):
-        self.pos = (self.pos[0] + math.cos(self.heading) * self.vel * deltaT,
-                    self.pos[1] - math.sin(self.heading) * self.vel * deltaT)
+        if not (self.vel == 0 and self.omega == 0):
+            self.pos = (self.pos[0] + math.cos(self.heading) * self.vel * deltaT,
+                        self.pos[1] - math.sin(self.heading) * self.vel * deltaT)
 
-        self.heading += self.omega * deltaT
+            self.heading += self.omega * deltaT
+
+            #add noise
+            self.pos = (self.pos[0] + np.random.normal(0, self.noise[0], size=None), self.pos[1] + np.random.normal(0, self.noise[1], size=None))
+            self.heading += np.random.normal(0, self.noise[2], size=None)
+
 
 class Map:
-    def __init__(self, features, map_size=(500, 600, 3)):
+    def __init__(self, robot, features, localizer, map_size=(500, 600, 3)):
+        self.robot = robot
+        self.localizer = localizer
         self.features = features
         self.map_size = map_size
         self.image = np.ones(self.map_size, np.uint8) * 255
@@ -46,6 +56,11 @@ class Map:
         self.min_timediff_sec = 1.0 / self.vel_limit
 
         self.counter = 0
+
+        self.sensor_noise = (0.5, 0.05, 0,2)
+
+        self.pos = np.array([[self.robot.pos[0]], [self.robot.pos[1]], [self.robot.heading]], dtype=np.float)
+        self.pos_cov = np.array([[self.robot.noise[0], 0, 0], [0, self.robot.noise[1], 0], [0, 0, self.robot.noise[2]]], dtype=np.float)
 
     def intersection(self, feature):
         x_diff = feature[0] - self.robot.pos[0]
@@ -107,6 +122,21 @@ class Map:
                          (np.uint(feature[0]), np.uint(feature[1])), (0, 255, 0),
                          self.thickness)
 
+    def update_sensor_values(self):
+        self.sensor_values = []
+        for signature, feature in enumerate(self.features):
+            distance = math.sqrt((self.robot.pos[0]-feature[0])**2 + (self.robot.pos[1]-feature[1])**2)
+            if distance < self.robot.sensor_range and distance > self.robot.radius:
+                x_diff = feature[0] - self.robot.pos[0]
+                y_diff = self.robot.pos[1] - feature[1]
+
+                angle = math.atan2(y_diff, x_diff) - self.robot.heading
+                #add noise
+                distance += np.random.normal(0, self.sensor_noise[0], size=None)
+                angle += np.random.normal(0, self.sensor_noise[1], size=None)
+                signature += np.random.normal(0, self.sensor_noise[2], size=None)
+                self.sensor_values.append((distance, angle, signature))
+
     def set_robot(self, robot):
         self.robot = robot
 
@@ -138,6 +168,11 @@ class Map:
                 timediff_ns = end - start
                 if timediff_ns > self.min_timediff_sec:
                     self.robot.move(self.min_timediff_sec)
+                    self.update_sensor_values()
+                    u = np.array([[self.robot.vel], [self.robot.omega]], dtype=np.float)
+                    (pos, pos_cov) = self.localizer.predict(self.pos, self.pos_cov, u, self.sensor_values, self.features)
+                    self.pos = pos
+                    self.pos_cov = pos_cov
                     self.draw()
                     cv2.imshow('simulator', self.image)
                     start = time.clock()
