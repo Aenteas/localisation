@@ -25,7 +25,7 @@ class Robot:
         self.color = (255, 0, 0)
 
         self.sensor_range = 75.0
-        self.noise = (0.5, 0.5, 0.05)
+        self.noise = (0.05, 0.05, 0.05)
 
     def move(self, deltaT):
         if not (self.vel == 0 and self.omega == 0):
@@ -33,6 +33,10 @@ class Robot:
                         self.pos[1] - math.sin(self.heading) * self.vel * deltaT)
 
             self.heading += self.omega * deltaT
+            if self.heading > math.pi * 2:
+                self.heading -= math.pi * 2
+            elif self.heading < -math.pi * 2:
+                self.heading += math.pi * 2
 
             #add noise
             self.pos = (self.pos[0] + np.random.normal(0, self.noise[0], size=None), self.pos[1] + np.random.normal(0, self.noise[1], size=None))
@@ -57,10 +61,12 @@ class Map:
 
         self.counter = 0
 
-        self.sensor_noise = (0.5, 0.05, 0,2)
+        self.sensor_noise = (0.05, 0.05, 0.02)
 
         self.pos = np.array([[self.robot.pos[0]], [self.robot.pos[1]], [self.robot.heading]], dtype=np.float)
         self.pos_cov = np.array([[self.robot.noise[0], 0, 0], [0, self.robot.noise[1], 0], [0, 0, self.robot.noise[2]]], dtype=np.float)
+
+        self.prev_pos = np.array([[self.robot.pos[0]], [self.robot.pos[1]], [self.robot.heading]], dtype=np.float)
 
     def intersection(self, feature):
         x_diff = feature[0] - self.robot.pos[0]
@@ -85,14 +91,11 @@ class Map:
 
     # you can also use this to determine the sensor coordinates on the circle line
     def robot_circle_points(self, heading):
-        if self.robot.vel > 0:
-            heading_sign_end_point_x = np.uint(
-                math.cos(heading) * self.robot.radius + self.robot.pos[0])
-            heading_sign_end_point_y = np.uint(
-                -math.sin(heading) * self.robot.radius + self.robot.pos[1])
-            return (heading_sign_end_point_x, heading_sign_end_point_y)
-        else:
-            return (np.uint(self.robot.pos[0]), np.uint(self.robot.pos[1]))
+        heading_sign_end_point_x = np.uint(
+            math.cos(heading) * self.robot.radius + self.robot.pos[0])
+        heading_sign_end_point_y = np.uint(
+            -math.sin(heading) * self.robot.radius + self.robot.pos[1])
+        return (heading_sign_end_point_x, heading_sign_end_point_y)
 
     def draw_robot(self):
         circ_axes = (self.robot.radius, self.robot.radius)
@@ -112,6 +115,14 @@ class Map:
         p3 = int(self.robot.pos[0])
         p4 = int(self.robot.pos[1])
         cv2.line(self.image_trajectory, (p1, p2), (p3, p4), (50, 50, 50), self.thickness)
+
+        p1 = int(self.prev_pos[0])
+        p2 = int(self.prev_pos[1])
+        p3 = int(self.pos[0])
+        p4 = int(self.pos[1])
+        cv2.line(self.image_trajectory, (p1, p2), (p3, p4), (0, 0, 255), self.thickness)
+
+        self.prev_pos = self.pos
         self.robot.prev_pos = self.robot.pos
 
     def draw_sensors(self):
@@ -170,7 +181,7 @@ class Map:
                     self.robot.move(self.min_timediff_sec)
                     self.update_sensor_values()
                     u = np.array([[self.robot.vel], [self.robot.omega]], dtype=np.float)
-                    (pos, pos_cov) = self.localizer.predict(self.pos, self.pos_cov, u, self.sensor_values, self.features)
+                    (pos, pos_cov) = self.localizer.predict(self.pos, self.pos_cov, u, self.sensor_values, self.features, self.robot.pos, self.robot.heading)
                     self.pos = pos
                     self.pos_cov = pos_cov
                     self.draw()
