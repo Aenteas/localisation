@@ -20,13 +20,17 @@ class Localization:
 
         A = np.eye(3, dtype=np.float)
         B = np.array([[delta_t * math.cos(heading), 0],
-                      [delta_t * math.sin(heading), 0],
+                      [-delta_t * math.sin(heading), 0],
                       [0, delta_t]], dtype=np.float)
         C = np.eye(3, dtype=np.float)
         #comptations could be simplified but if we want to change the matrices A, B, C the general
         #method is always working
         #prediction
         pos_pred = np.dot(A, prev_pos) + np.dot(B, u)
+        if pos_pred[2] > math.pi * 2:
+            pos_pred[2] -= math.pi * 2
+        elif pos_pred[2] < -math.pi * 2:
+            pos_pred[2] += math.pi * 2
         pos_cov_pred = np.dot(np.dot(A, prev_pos_cov), np.transpose(A)) + self.R
         if sensor_values.__len__() == 0:
             return (pos_pred, pos_cov_pred) # If we have no measurements we only use the prediction from the model
@@ -42,6 +46,7 @@ class Localization:
                 x = x_feature - value[0] * math.cos(value[1] + pos_pred[2])
                 z[0] += x
                 z[1] += y
+
             z /= float(sensor_values.__len__())
             # Just from the bearing and distance we have no information of the heading (more heading value can cause the
             # same measurements, thus we are going to use the value predicted from the motion model)
