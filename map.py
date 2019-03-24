@@ -181,7 +181,8 @@ class Map:
                     self.robot.move(self.min_timediff_sec)
                     self.update_sensor_values()
                     u = np.array([[self.robot.vel], [self.robot.omega]], dtype=np.float)
-                    (pos, pos_cov) = self.localizer.predict(self.pos, self.pos_cov, u, self.sensor_values, self.features, self.robot.pos, self.robot.heading)
+#                    print("u:"+str(u))
+                    (pos, pos_cov) = self.localizer.predict(self.pos, self.pos_cov, u, self.sensor_values, self.features)
                     self.pos = pos
                     self.pos_cov = pos_cov
                     self.draw()

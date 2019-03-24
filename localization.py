@@ -20,8 +20,8 @@ class Localization:
 
         A = np.eye(3, dtype=np.float)
         B = np.array([[delta_t * math.cos(heading), 0],
-                      [-delta_t * math.sin(heading), 0],
-                      [0, delta_t]], dtype=np.float)
+                      [delta_t * math.sin(heading), 0],
+                      [0, delta_t ]], dtype=np.float)
         C = np.eye(3, dtype=np.float)
         #comptations could be simplified but if we want to change the matrices A, B, C the general
         #method is always working
@@ -59,3 +59,5 @@ class Localization:
             pos_cov_corr = np.dot((np.eye(3, dtype=np.float) - np.dot(K, C)), pos_cov_pred)
 
             return (pos_corr, pos_cov_corr)
+        
+print(np.eye(3))
