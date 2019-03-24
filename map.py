@@ -25,7 +25,8 @@ class Robot:
         self.color = (255, 0, 0)
 
         self.sensor_range = 75.0
-        self.noise = (0.01, 0.01, 0.01)
+        self.noise = (0.02, 0.02, 0.03)
+        self.counter = 0
 
     def move(self, deltaT):
         if not (self.vel == 0 and self.omega == 0):
@@ -61,7 +62,7 @@ class Map:
 
         self.counter = 0
 
-        self.sensor_noise = (0.05, 0.02, 0.02)
+        self.sensor_noise = (0.01, 0.01, 0.01)
 
         self.pos = np.array([[self.robot.pos[0]], [self.robot.pos[1]], [self.robot.heading]], dtype=np.float)
         self.pos_cov = np.array([[self.robot.noise[0], 0, 0], [0, self.robot.noise[1], 0], [0, 0, self.robot.noise[2]]], dtype=np.float)
@@ -151,6 +152,11 @@ class Map:
     def set_robot(self, robot):
         self.robot = robot
 
+    def draw_ellipse(self, height, width, rotation, center):
+        print(rotation)
+        cv2.ellipse(self.image, (np.uint(center[0].item(0)), np.uint(center[1].item(0))), (np.uint(width.item(1)), np.uint(height.item(0))), rotation, 0, 360,
+                    color=(150,241,110))
+
     def simulate(self):
         if hasattr(self, 'robot'):
             start = time.clock()
@@ -178,12 +184,14 @@ class Map:
                 end = time.clock()
                 timediff_ns = end - start
                 if timediff_ns > self.min_timediff_sec:
+                    self.counter += 1
                     self.robot.move(self.min_timediff_sec)
                     self.update_sensor_values()
                     u = np.array([[self.robot.vel], [self.robot.omega]], dtype=np.float)
-                    (pos, pos_cov) = self.localizer.predict(self.pos, self.pos_cov, u, self.sensor_values, self.features)
+                    (pos, pos_cov, predicted_heading) = self.localizer.predict(self.pos, self.pos_cov, u, self.sensor_values, self.features)
                     self.pos = pos
                     self.pos_cov = pos_cov
                     self.draw()
+                    self.draw_ellipse(pos_cov[0], pos_cov[1], predicted_heading, pos)
                     cv2.imshow('simulator', self.image)
                     start = time.clock()
