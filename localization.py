@@ -14,7 +14,7 @@ class Localization:
                            [0, sensor_var[1], 0],
                            [0, 0, sensor_var[2]]], dtype=np.float)
 
-    def predict(self, prev_pos, prev_pos_cov, u, sensor_values, features, realpos, realheading):
+    def predict(self, prev_pos, prev_pos_cov, u, sensor_values, features):
         delta_t = self.min_timediff_sec
         heading = prev_pos[2]
 
