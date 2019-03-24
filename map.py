@@ -28,6 +28,7 @@ class Robot:
         self.noise = (0.02, 0.02, 0.03)
         self.counter = 0
 
+
     def move(self, deltaT):
         if not (self.vel == 0 and self.omega == 0):
             self.pos = (self.pos[0] + math.cos(self.heading) * self.vel * deltaT,
@@ -68,6 +69,11 @@ class Map:
         self.pos_cov = np.array([[self.robot.noise[0], 0, 0], [0, self.robot.noise[1], 0], [0, 0, self.robot.noise[2]]], dtype=np.float)
 
         self.prev_pos = np.array([[self.robot.pos[0]], [self.robot.pos[1]], [self.robot.heading]], dtype=np.float)
+        self.center1 = []
+        self.center2 = []
+        self.width1 = []
+        self.height1 = []
+        self.rotation1 = []
 
     def intersection(self, feature):
         x_diff = feature[0] - self.robot.pos[0]
@@ -89,6 +95,7 @@ class Map:
         self.draw_features()
         self.draw_robot()
         self.draw_sensors()
+        self.draw_ellipse()
 
     # you can also use this to determine the sensor coordinates on the circle line
     def robot_circle_points(self, heading):
@@ -152,10 +159,17 @@ class Map:
     def set_robot(self, robot):
         self.robot = robot
 
-    def draw_ellipse(self, height, width, rotation, center):
-        print(rotation)
-        cv2.ellipse(self.image, (np.uint(center[0].item(0)), np.uint(center[1].item(0))), (np.uint(width.item(1)), np.uint(height.item(0))), rotation, 0, 360,
-                    color=(150,241,110))
+    def store_ellipse(self, height, width, rotation, center):
+        self.center1.append(np.uint(center[0].item(0)))
+        self.center2.append(np.uint(center[1].item(0)))
+        self.width1.append(np.uint(width.item(1)))
+        self.height1.append(np.uint(height.item(0)))
+        self.rotation1.append(rotation)
+
+    def draw_ellipse(self):
+        for i in range(len(self.center1)):
+            cv2.ellipse(self.image, (self.center1[i], self.center2[i]), (self.width1[i], self.height1[i]),
+                        self.rotation1[i], 0, 360, color=(150, 241, 110))
 
     def simulate(self):
         if hasattr(self, 'robot'):
@@ -192,6 +206,8 @@ class Map:
                     self.pos = pos
                     self.pos_cov = pos_cov
                     self.draw()
-                    self.draw_ellipse(pos_cov[0], pos_cov[1], predicted_heading, pos)
+                    if self.counter % 100 == 0:
+                        self.store_ellipse(pos_cov[0], pos_cov[1], predicted_heading, pos)
                     cv2.imshow('simulator', self.image)
                     start = time.clock()
+
