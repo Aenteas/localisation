@@ -3,7 +3,8 @@ import math
 
 
 class Localization:
-    def __init__(self, min_timediff_sec, model_var=(0.5, 0.05, 0.05), sensor_var=(0.5, 0.5, 0.2)):
+    def __init__(self, min_timediff_sec, model_var=(0.02, 0.02, 0.01), sensor_var=(0.01, 0.01, 0.01)):
+        #####made by David
         self.min_timediff_sec = min_timediff_sec
         self.model_var = model_var
         self.R = np.array([[model_var[0], 0, 0],
@@ -14,7 +15,8 @@ class Localization:
                            [0, sensor_var[1], 0],
                            [0, 0, sensor_var[2]]], dtype=np.float)
 
-    def predict(self, prev_pos, prev_pos_cov, u, sensor_values, features): #, realpos, realheading):
+    def predict(self, prev_pos, prev_pos_cov, u, sensor_values, features):
+        #####made by David
         delta_t = self.min_timediff_sec
         heading = prev_pos[2]
         predicted_heading = 0
