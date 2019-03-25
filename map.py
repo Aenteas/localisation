@@ -4,6 +4,8 @@ import math
 import random
 import time
 from localization import Localization
+from sklearn.metrics import mean_squared_error as mse
+import matplotlib.pyplot as plt
 
 class Robot:
     def __init__(self, pos, radius=25, map_size=(500, 600, 3)):
@@ -183,15 +185,25 @@ class Map:
         for i in range(len(self.center1)):
             cv2.ellipse(self.image, (self.center1[i], self.center2[i]), (self.width1[i], self.height1[i]),
                         self.rotation1[i], 0, 360, color=(150, 241, 110))
+    
+    def plot_rmse(self,rmse_array):
+        x = np.linspace(1, len(rmse_array), num=len(rmse_array))
+        y = rmse_array
+        plt.plot(x, y, '.-')
+        plt.title('RMSE Plot')
+        plt.xlabel('Time Steps')
+        plt.show()
 #End of Quinton part
 
     def simulate(self):
+        rmse_array = []
         #####made by David
         if hasattr(self, 'robot'):
             start = time.clock()
             while (1):
                 input = cv2.waitKey(1)
                 if input == ord('p'):  # press p to stop
+                    self.plot_rmse(rmse_array)
                     cv2.destroyAllWindows()
                     break
                 if input == ord('w'):
@@ -218,6 +230,7 @@ class Map:
                     self.update_sensor_values()
                     u = np.array([[self.robot.vel], [self.robot.omega]], dtype=np.float)
                     (pos, pos_cov, predicted_heading) = self.localizer.predict(self.pos, self.pos_cov, u, self.sensor_values, self.features)
+                    rmse_array.append(math.sqrt(mse((pos[0],pos[1] ),(self.pos[0],self.pos[1]))))
                     self.pos = pos
                     self.pos_cov = pos_cov
                     self.draw()
