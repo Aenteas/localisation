@@ -6,6 +6,8 @@ import random
 from localization import Localization
 import math
 
+#####made by David
+
 num_features = 30
 map_size = (500, 600)
 min_timediff_sec = 1.0/50.0

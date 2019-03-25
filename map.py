@@ -4,9 +4,12 @@ import math
 import random
 import time
 from localization import Localization
+from sklearn.metrics import mean_squared_error as mse
+import matplotlib.pyplot as plt
 
 class Robot:
     def __init__(self, pos, radius=25, map_size=(500, 600, 3)):
+        #####made by David
         self.pos = pos
         self.prev_pos = pos
         # the radius of the circle of the robot
@@ -25,9 +28,12 @@ class Robot:
         self.color = (255, 0, 0)
 
         self.sensor_range = 75.0
-        self.noise = (0.05, 0.05, 0.05)
+        self.noise = (0.02, 0.02, 0.001)
+        self.counter = 0
+
 
     def move(self, deltaT):
+        #####made by David
         if not (self.vel == 0 and self.omega == 0):
             self.pos = (self.pos[0] + math.cos(self.heading) * self.vel * deltaT,
                         self.pos[1] - math.sin(self.heading) * self.vel * deltaT)
@@ -45,6 +51,7 @@ class Robot:
 
 class Map:
     def __init__(self, robot, features, localizer, map_size=(500, 600, 3)):
+        #####made by David
         self.robot = robot
         self.localizer = localizer
         self.features = features
@@ -61,14 +68,20 @@ class Map:
 
         self.counter = 0
 
-        self.sensor_noise = (0.05, 0.05, 0.02)
+        self.sensor_noise = (0.01, 0.01, 0.01)
 
         self.pos = np.array([[self.robot.pos[0]], [self.robot.pos[1]], [self.robot.heading]], dtype=np.float)
         self.pos_cov = np.array([[self.robot.noise[0], 0, 0], [0, self.robot.noise[1], 0], [0, 0, self.robot.noise[2]]], dtype=np.float)
 
         self.prev_pos = np.array([[self.robot.pos[0]], [self.robot.pos[1]], [self.robot.heading]], dtype=np.float)
+        self.center1 = []
+        self.center2 = []
+        self.width1 = []
+        self.height1 = []
+        self.rotation1 = []
 
     def intersection(self, feature):
+        #####made by David
         x_diff = feature[0] - self.robot.pos[0]
         y_diff = feature[1] - self.robot.pos[1]
         if x_diff == 0 and y_diff < 0:
@@ -83,14 +96,17 @@ class Map:
         return intersection
 
     def draw(self):
+        #####made by David
         self.draw_trajectory()
         self.image = np.copy(self.image_trajectory)
         self.draw_features()
         self.draw_robot()
         self.draw_sensors()
+        self.draw_ellipse()
 
     # you can also use this to determine the sensor coordinates on the circle line
     def robot_circle_points(self, heading):
+        #####made by David
         heading_sign_end_point_x = np.uint(
             math.cos(heading) * self.robot.radius + self.robot.pos[0])
         heading_sign_end_point_y = np.uint(
@@ -98,6 +114,7 @@ class Map:
         return (heading_sign_end_point_x, heading_sign_end_point_y)
 
     def draw_robot(self):
+        #####made by David
         circ_axes = (self.robot.radius, self.robot.radius)
         cv2.ellipse(self.image, (np.uint(self.robot.pos[0]), np.uint(self.robot.pos[1])), circ_axes, 0, 0, 360,
                     self.robot.color, self.thickness, cv2.LINE_AA)
@@ -106,10 +123,12 @@ class Map:
                  self.thickness+1)
 
     def draw_features(self):
+        #####made by David
         for feature in self.features:
             cv2.circle(self.image, (np.uint(feature[0]), np.uint(feature[1])), 2, (255, 0, 0), -1)
 
     def draw_trajectory(self):
+        #####made by David
         p1 = int(self.robot.prev_pos[0])
         p2 = int(self.robot.prev_pos[1])
         p3 = int(self.robot.pos[0])
@@ -126,6 +145,7 @@ class Map:
         self.robot.prev_pos = self.robot.pos
 
     def draw_sensors(self):
+        #####made by David
         for feature in self.features:
             distance = math.sqrt((self.robot.pos[0]-feature[0])**2 + (self.robot.pos[1]-feature[1])**2)
             if distance < self.robot.sensor_range and distance > self.robot.radius:
@@ -149,14 +169,40 @@ class Map:
                 self.sensor_values.append((distance, angle, signature))
 
     def set_robot(self, robot):
+        #####made by David
         self.robot = robot
 
+    def store_ellipse(self, height, width, rotation, center):
+        #### Made by Ismail
+        self.center1.append(np.uint(center[0].item(0)))
+        self.center2.append(np.uint(center[1].item(0)))
+        self.width1.append(np.uint(width.item(1)))
+        self.height1.append(np.uint(height.item(0)))
+        self.rotation1.append(rotation)
+
+    def draw_ellipse(self):
+        #### Made by Ismail
+        for i in range(len(self.center1)):
+            cv2.ellipse(self.image, (self.center1[i], self.center2[i]), (self.width1[i], self.height1[i]),
+                        self.rotation1[i], 0, 360, color=(150, 241, 110))
+    def plot_rmse(self,rmse_array):
+        x = np.linspace(1, len(rmse_array), num=len(rmse_array))
+        y = rmse_array
+        plt.plot(x, y, '.-')
+        plt.title('RMSE Plot')
+        plt.xlabel('Time Steps')
+        plt.show()
+#End of Ismail part
+
     def simulate(self):
+        rmse_array = []
+        #####made by David
         if hasattr(self, 'robot'):
             start = time.clock()
             while (1):
                 input = cv2.waitKey(1)
                 if input == ord('p'):  # press p to stop
+                    self.plot_rmse(rmse_array)
                     cv2.destroyAllWindows()
                     break
                 if input == ord('w'):
@@ -178,13 +224,19 @@ class Map:
                 end = time.clock()
                 timediff_ns = end - start
                 if timediff_ns > self.min_timediff_sec:
+                    self.counter += 1
                     self.robot.move(self.min_timediff_sec)
                     self.update_sensor_values()
                     u = np.array([[self.robot.vel], [self.robot.omega]], dtype=np.float)
-#                    print("u:"+str(u))
-                    (pos, pos_cov) = self.localizer.predict(self.pos, self.pos_cov, u, self.sensor_values, self.features)
+                    (pos, pos_cov, predicted_heading) = self.localizer.predict(self.pos, self.pos_cov, u, self.sensor_values, self.features)
+                    rmse_array.append(math.sqrt(mse((pos[0],pos[1] ),(self.pos[0],self.pos[1]))))
+#                    print("prediction correction position"+str(pos))
+#                    print("real position"+str(self.pos))
                     self.pos = pos
                     self.pos_cov = pos_cov
                     self.draw()
+                    #Made by Ismail
+                    if self.counter % 100 == 0:
+                        self.store_ellipse(pos_cov[0], pos_cov[1], predicted_heading, pos)
                     cv2.imshow('simulator', self.image)
                     start = time.clock()
