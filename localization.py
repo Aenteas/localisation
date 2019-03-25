@@ -33,7 +33,7 @@ class Localization:
             pos_pred[2] -= math.pi * 2
         elif pos_pred[2] < -math.pi * 2:
             pos_pred[2] += math.pi * 2
-        predicted_heading = pos_pred[2] * 180/math.pi
+        predicted_heading = pos_pred[2] * 180/math.pi #made by quinton
         pos_cov_pred = np.dot(np.dot(A, prev_pos_cov), np.transpose(A)) + self.R
         if sensor_values.__len__() == 0:
             return (pos_pred, pos_cov_pred, predicted_heading) # If we have no measurements we only use the prediction from the model
@@ -50,7 +50,7 @@ class Localization:
                 #print('pred', math.degrees(value[1] + pos_pred[2]), value[0] * math.sin(value[1] + pos_pred[2]), -value[0] * math.cos(value[1] + pos_pred[2]))
                 z[0] += x
                 z[1] += y
-                predicted_heading = value[0] * 180/math.pi
+                predicted_heading = value[0] * 180/math.pi #made by Quinton
 
             z /= float(sensor_values.__len__())
             # Just from the bearing and distance we have no information of the heading (more heading value can cause the
