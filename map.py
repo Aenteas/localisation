@@ -171,7 +171,7 @@ class Map:
         self.robot = robot
 
     def store_ellipse(self, height, width, rotation, center):
-        #### Made by Ismail
+        #### Made by Quinton
         self.center1.append(np.uint(center[0].item(0)))
         self.center2.append(np.uint(center[1].item(0)))
         self.width1.append(np.uint(width.item(1)))
@@ -179,11 +179,11 @@ class Map:
         self.rotation1.append(rotation)
 
     def draw_ellipse(self):
-        #### Made by Ismail
+        #### Made by Quinton
         for i in range(len(self.center1)):
             cv2.ellipse(self.image, (self.center1[i], self.center2[i]), (self.width1[i], self.height1[i]),
                         self.rotation1[i], 0, 360, color=(150, 241, 110))
-#End of Ismail part
+#End of Quinton part
 
     def simulate(self):
         #####made by David
@@ -221,7 +221,7 @@ class Map:
                     self.pos = pos
                     self.pos_cov = pos_cov
                     self.draw()
-                    #Made by Ismail
+                    #Made by Quinton
                     if self.counter % 100 == 0:
                         self.store_ellipse(pos_cov[0], pos_cov[1], predicted_heading, pos)
                     cv2.imshow('simulator', self.image)
