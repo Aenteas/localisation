@@ -3,7 +3,7 @@ import math
 
 
 class Localization:
-    def __init__(self, min_timediff_sec, model_var=(0.02, 0.02, 0.01), sensor_var=(0.01, 0.01, 0.01)):
+    def __init__(self, min_timediff_sec, model_var=(0.001, 0.001, 0.001), sensor_var=(5, 5, 5)):
         #####made by David
         self.min_timediff_sec = min_timediff_sec
         self.model_var = model_var

@@ -185,7 +185,9 @@ class Map:
         for i in range(len(self.center1)):
             cv2.ellipse(self.image, (self.center1[i], self.center2[i]), (self.width1[i], self.height1[i]),
                         self.rotation1[i], 0, 360, color=(150, 241, 110))
-    
+        
+        
+    ##Made by Ismail
     def plot_rmse(self,rmse_array):
         x = np.linspace(1, len(rmse_array), num=len(rmse_array))
         y = rmse_array
@@ -193,7 +195,7 @@ class Map:
         plt.title('RMSE Plot')
         plt.xlabel('Time Steps')
         plt.show()
-#End of Quinton part
+
 
     def simulate(self):
         rmse_array = []
